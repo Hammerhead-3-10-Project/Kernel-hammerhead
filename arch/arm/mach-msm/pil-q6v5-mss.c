@@ -30,8 +30,8 @@
 #include <soc/qcom/subsystem_restart.h>
 #include <soc/qcom/ramdump.h>
 
-#include <mach/msm_smsm.h>
 #include <soc/qcom/smem.h>
+#include <soc/qcom/smsm.h>
 
 #include "peripheral-loader.h"
 #include "pil-q6v5.h"

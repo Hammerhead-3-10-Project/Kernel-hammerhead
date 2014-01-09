@@ -28,7 +28,7 @@
 #include <linux/msm_ion.h>
 #include <linux/platform_data/qcom_ssm.h>
 #include <soc/qcom/scm.h>
-#include <mach/msm_smd.h>
+#include <soc/qcom/smd.h>
 
 #include "qseecom_kernel.h"
 #include "ssm.h"

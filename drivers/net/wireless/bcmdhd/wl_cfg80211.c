@@ -3255,7 +3255,8 @@ wl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 				WL_ERR(("error (%d)\n", err));
 				return err;
 			}
-			wait_cnt = 500/10;
+			/* wait for disconnection termination, upto 200 ms */
+			wait_cnt = 200/10;
 			while (wl_get_drv_status(wl, DISCONNECTING, dev) && wait_cnt) {
 				WL_DBG(("Waiting for disconnection terminated, wait_cnt: %d\n",
 					wait_cnt));
@@ -3481,10 +3482,19 @@ wl_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	RETURN_EIO_IF_NOT_UP(wl);
 	act = *(bool *) wl_read_prof(wl, dev, WL_PROF_ACT);
 	curbssid = wl_read_prof(wl, dev, WL_PROF_BSSID);
+#ifdef ESCAN_RESULT_PATCH
+	if (wl_get_drv_status(wl, CONNECTING, dev) && curbssid &&
+			(memcmp(curbssid, connect_req_bssid, ETHER_ADDR_LEN) == 0)) {
+		WL_ERR(("Disconnecting from connecting device: " MACDBG "\n",
+			MAC2STRDBG(curbssid)));
+		act = true;
+	}
+#endif /* ESCAN_RESULT_PATCH */
+
 	if (act) {
 		/*
-		* Cancel ongoing scan to sync up with sme state machine of cfg80211.
-		*/
+		 * Cancel ongoing scan to sync up with sme state machine of cfg80211.
+		 */
 		/* Let scan aborted by F/W */
 		if (wl->scan_request) {
 			wl_notify_escan_complete(wl, dev, true, true);

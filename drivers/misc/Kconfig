@@ -609,6 +609,16 @@ config APQ8084_DOCKING_STATION
 	  This option enables support for the USB and Ethernet ports found on
 	  the QTI APQ8084 Docking Station.
 
+config EARJACK_DEBUGGER
+	bool "Earjack UART debugger support"
+	depends on SERIAL_MSM_HSL
+	help
+	  Enables support for Earjack Debugger trigger. It controls
+	  uart console. uart console will be disabled if detected earjack
+	  debugger. Otherwise, uart console will be enabled.
+
+	  Say 'y' here to include support for earjack debugger trigger
+
 config UID_CPUTIME
 	tristate "Per-UID cpu time statistics"
 	depends on PROFILING

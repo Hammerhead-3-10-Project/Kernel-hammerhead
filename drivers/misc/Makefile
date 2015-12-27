@@ -62,5 +62,6 @@ obj-$(CONFIG_QFP_FUSE) += qfp_fuse.o
 obj-$(CONFIG_TI_DRV2667) += ti_drv2667.o
 obj-$(CONFIG_QPNP_MISC) += qpnp-misc.o
 obj-$(CONFIG_APQ8084_DOCKING_STATION)	+= apq8084_dock.o
+obj-$(CONFIG_EARJACK_DEBUGGER) += earjack_debugger.o
 obj-y				+= qcom/
 obj-$(CONFIG_UID_CPUTIME) 	+= uid_cputime.o

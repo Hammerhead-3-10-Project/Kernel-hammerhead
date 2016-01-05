@@ -2429,6 +2429,8 @@ static int msm_hs_config_uart_gpios(struct uart_port *uport)
 	const struct msm_serial_hs_platform_data *pdata =
 					pdev->dev.platform_data;
 	int ret = 0;
+
+#ifdef CONFIG_PINCTRL
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
 
 	if (!IS_ERR_OR_NULL(msm_uport->pinctrl)) {
@@ -2440,7 +2442,9 @@ static int msm_hs_config_uart_gpios(struct uart_port *uport)
 			MSM_HS_ERR("%s(): Failed to pinctrl set_state",
 				__func__);
 		return ret;
-	} else if (pdata) {
+	} else 
+#endif
+	if (pdata) {
 		/* Fall back to using gpio lib */
 		if (gpio_is_valid(pdata->uart_tx_gpio)) {
 			ret = gpio_request(pdata->uart_tx_gpio,
@@ -2500,7 +2504,7 @@ exit_uart_config:
 	return ret;
 }
 
-
+#ifdef CONFIG_PINCTRL
 static void msm_hs_get_pinctrl_configs(struct uart_port *uport)
 {
 	struct pinctrl_state *set_state;
@@ -2542,6 +2546,7 @@ pinctrl_fail:
 	msm_uport->pinctrl = NULL;
 	return;
 }
+#endif
 
 /* Called when port is opened */
 static int msm_hs_startup(struct uart_port *uport)
@@ -3126,8 +3131,9 @@ static int msm_hs_probe(struct platform_device *pdev)
 
 	if (pdev->dev.of_node)
 		msm_uport->uart_type = BLSP_HSUART;
-
+#ifdef CONFIG_PINCTRL
 	msm_hs_get_pinctrl_configs(uport);
+#endif
 	/* Get required resources for BAM HSUART */
 	core_resource = platform_get_resource_byname(pdev,
 				IORESOURCE_MEM, "core_mem");
@@ -3490,12 +3496,14 @@ static int msm_hs_runtime_resume(struct device *dev)
 	struct platform_device *pdev = container_of(dev, struct
 						    platform_device, dev);
 	struct msm_hs_port *msm_uport = get_matching_hs_port(pdev);
+#ifdef CONFIG_PINCTRL	
 	int ret;
-
+#endif
 	/* This check should not fail
 	 * During probe, we set uport->line to either pdev->id or userid */
 	if (msm_uport) {
 		msm_hs_request_clock_on(&msm_uport->uport);
+#ifdef CONFIG_PINCTRL
 		if (msm_uport->use_pinctrl) {
 			ret = pinctrl_select_state(msm_uport->pinctrl,
 						msm_uport->gpio_state_active);
@@ -3503,6 +3511,7 @@ static int msm_hs_runtime_resume(struct device *dev)
 				MSM_HS_ERR("%s(): error select active state",
 					__func__);
 		}
+#endif
 	}
 	return 0;
 }
@@ -3512,12 +3521,15 @@ static int msm_hs_runtime_suspend(struct device *dev)
 	struct platform_device *pdev = container_of(dev, struct
 						    platform_device, dev);
 	struct msm_hs_port *msm_uport = get_matching_hs_port(pdev);
+#ifdef CONFIG_PINCTRL
 	int ret;
-
+#endif
+	
 	/* This check should not fail
 	 * During probe, we set uport->line to either pdev->id or userid */
 	if (msm_uport) {
 		msm_hs_request_clock_off(&msm_uport->uport);
+#ifdef CONFIG_PINCTRL
 		if (msm_uport->use_pinctrl) {
 			ret = pinctrl_select_state(msm_uport->pinctrl,
 						msm_uport->gpio_state_suspend);
@@ -3525,6 +3537,7 @@ static int msm_hs_runtime_suspend(struct device *dev)
 				MSM_HS_ERR("%s(): error select suspend state",
 					__func__);
 		}
+#endif
 	}
 	return 0;
 }

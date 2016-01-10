@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -119,14 +119,13 @@ static int mdss_mdp_rotator_busy_wait(struct mdss_mdp_rotator_session *rot)
 {
 
 	mutex_lock(&rot->lock);
-	if (!rot->pipe || !rot->pipe->mixer_left ||
-		!rot->pipe->mixer_left->ctl) {
+	if (!rot->pipe || !rot->pipe->mixer || !rot->pipe->mixer->ctl) {
 		mutex_unlock(&rot->lock);
 		return -ENODEV;
 	}
 
 	if (rot->busy) {
-		struct mdss_mdp_ctl *ctl = rot->pipe->mixer_left->ctl;
+		struct mdss_mdp_ctl *ctl = rot->pipe->mixer->ctl;
 		mdss_mdp_display_wait4comp(ctl);
 		rot->busy = false;
 		if (ctl->shared_lock)
@@ -215,6 +214,13 @@ static int __mdss_mdp_rotator_to_pipe(struct mdss_mdp_rotator_session *rot,
 		struct mdss_mdp_pipe *pipe)
 {
 	int ret;
+	struct mdss_mdp_pipe *rot_pipe = NULL;
+	struct mdss_mdp_ctl *orig_ctl;
+
+	rot_pipe = rot->pipe;
+	orig_ctl = rot_pipe->mixer->ctl;
+	if (orig_ctl->wb_lock)
+		mutex_lock(orig_ctl->wb_lock);
 
 	pipe->flags = rot->flags;
 	pipe->src_fmt = mdss_mdp_get_format_params(rot->format);
@@ -228,12 +234,12 @@ static int __mdss_mdp_rotator_to_pipe(struct mdss_mdp_rotator_session *rot,
 	rot->params_changed = 0;
 
 	ret = mdss_mdp_smp_reserve(pipe);
-	if (ret) {
+	if (ret)
 		pr_debug("unable to mdss_mdp_smp_reserve rot data\n");
-		return ret;
-	}
 
-	return 0;
+	if (orig_ctl->wb_lock)
+		mutex_unlock(orig_ctl->wb_lock);
+	return ret;
 }
 
 static int mdss_mdp_rotator_queue_sub(struct mdss_mdp_rotator_session *rot,
@@ -257,7 +263,7 @@ static int mdss_mdp_rotator_queue_sub(struct mdss_mdp_rotator_session *rot,
 
 	pr_debug("queue rotator pnum=%d\n", rot_pipe->num);
 
-	orig_ctl = rot_pipe->mixer_left->ctl;
+	orig_ctl = rot_pipe->mixer->ctl;
 	if (orig_ctl->shared_lock)
 		mutex_lock(orig_ctl->shared_lock);
 
@@ -267,7 +273,7 @@ static int mdss_mdp_rotator_queue_sub(struct mdss_mdp_rotator_session *rot,
 		ret = -EINVAL;
 		goto error;
 	} else {
-		rot->pipe->mixer_left = rot_ctl->mixer_left;
+		rot->pipe->mixer = rot_ctl->mixer_left;
 	}
 
 	if (rot->params_changed || rot_ctl->mdata->mixer_switched) {
@@ -287,6 +293,10 @@ static int mdss_mdp_rotator_queue_sub(struct mdss_mdp_rotator_session *rot,
 	ATRACE_BEGIN("rotator_kickoff");
 	ret = mdss_mdp_rotator_kickoff(rot_ctl, rot, dst_data);
 	ATRACE_END("rotator_kickoff");
+	if (ret) {
+		pr_err("mdss_mdp_rotator_kickoff error : %d\n", ret);
+		goto error;
+	}
 
 	return ret;
 error:
@@ -303,7 +313,6 @@ static void mdss_mdp_rotator_commit_wq_handler(struct work_struct *work)
 	rot = container_of(work, struct mdss_mdp_rotator_session, commit_work);
 
 	mutex_lock(&rotator_lock);
-
 	ret = mdss_mdp_rotator_queue_helper(rot);
 	if (ret)
 		pr_err("rotator queue failed\n");
@@ -471,17 +480,16 @@ int mdss_mdp_rotator_setup(struct msm_fb_data_type *mfd,
 		list_add(&rot->list, &mdp5_data->rot_proc_list);
 	} else if (req->id & MDSS_MDP_ROT_SESSION_MASK) {
 		rot = mdss_mdp_rotator_session_get(req->id);
+
 		if (!rot) {
 			pr_err("rotator session=%x not found\n", req->id);
 			ret = -ENODEV;
 			goto rot_err;
 		}
 
-		if (work_busy(&rot->commit_work)) {
-			mutex_unlock(&rotator_lock);
-			flush_work(&rot->commit_work);
-			mutex_lock(&rotator_lock);
-		}
+		mutex_unlock(&rotator_lock);
+		flush_work(&rot->commit_work);
+		mutex_lock(&rotator_lock);
 
 		if (rot->format != fmt->format)
 			format_changed = true;
@@ -531,6 +539,78 @@ int mdss_mdp_rotator_setup(struct msm_fb_data_type *mfd,
 	if (rot->flags & MDP_ROT_90)
 		swap(rot->dst.w, rot->dst.h);
 
+	if (rot->src_rect.w > MAX_MIXER_WIDTH) {
+		struct mdss_mdp_rotator_session *tmp;
+		u32 width;
+
+		if (rot->bwc_mode) {
+			pr_err("Unable to do split rotation with bwc set\n");
+			ret = -EINVAL;
+			goto rot_err;
+		}
+
+		width = rot->src_rect.w;
+
+		pr_debug("setting up split rotation src=%dx%d\n",
+			rot->src_rect.w, rot->src_rect.h);
+
+		if (width > (MAX_MIXER_WIDTH * 2)) {
+			pr_err("unsupported source width %d\n", width);
+			ret = -EOVERFLOW;
+			goto rot_err;
+		}
+
+		if (!rot->next) {
+			tmp = mdss_mdp_rotator_session_alloc();
+			if (!tmp) {
+				pr_err("unable to allocate rot dual session\n");
+				ret = -ENOMEM;
+				goto rot_err;
+			}
+			rot->next = tmp;
+		}
+		tmp = rot->next;
+
+		tmp->session_id = rot->session_id & ~MDSS_MDP_ROT_SESSION_MASK;
+		tmp->flags = rot->flags;
+		tmp->format = rot->format;
+		tmp->img_width = rot->img_width;
+		tmp->img_height = rot->img_height;
+		tmp->src_rect = rot->src_rect;
+
+		tmp->src_rect.w = width / 2;
+		width -= tmp->src_rect.w;
+		tmp->src_rect.x += width;
+
+		tmp->dst = rot->dst;
+		rot->src_rect.w = width;
+
+		if (rot->flags & MDP_ROT_90) {
+			/*
+			 * If rotated by 90 first half should be on top.
+			 * But if horizontally flipped should be on bottom.
+			 */
+			if (rot->flags & MDP_FLIP_LR)
+				rot->dst.y = tmp->src_rect.w;
+			else
+				tmp->dst.y = rot->src_rect.w;
+		} else {
+			/*
+			 * If not rotated, first half should be the left part
+			 * of the frame, unless horizontally flipped
+			 */
+			if (rot->flags & MDP_FLIP_LR)
+				rot->dst.x = tmp->src_rect.w;
+			else
+				tmp->dst.x = rot->src_rect.w;
+		}
+
+		tmp->params_changed++;
+	} else if (rot->next) {
+		mdss_mdp_rotator_finish(rot->next);
+		rot->next = NULL;
+	}
+
 	rot->params_changed++;
 
 	/* If the format changed, release the smp alloc */
@@ -554,14 +634,6 @@ int mdss_mdp_rotator_setup(struct msm_fb_data_type *mfd,
 		if (rot && (req->id == MSMFB_NEW_REQUEST))
 			mdss_mdp_rotator_finish(rot);
 	}
-	/*
-	 * overwrite the src format for rotator to dst format
-	 * for use by the user. On subsequent set calls, the
-	 * user is expected to proivde the original src format
-	 */
-	req->src.format = mdss_mdp_get_rotator_dst_format(req->src.format,
-		req->flags & MDP_ROT_90, req->flags & MDP_BWC_EN);
-
 	mutex_unlock(&rotator_lock);
 	return ret;
 }
@@ -584,11 +656,9 @@ static int mdss_mdp_rotator_finish(struct mdss_mdp_rotator_session *rot)
 
 	rot_pipe = rot->pipe;
 	if (rot_pipe) {
-		if (work_busy(&rot->commit_work)) {
-			mutex_unlock(&rotator_lock);
-			flush_work(&rot->commit_work);
-			mutex_lock(&rotator_lock);
-		}
+		mutex_unlock(&rotator_lock);
+		flush_work(&rot->commit_work);
+		mutex_lock(&rotator_lock);
 
 		mdss_mdp_rotator_busy_wait(rot);
 		list_del(&rot->head);
@@ -604,7 +674,7 @@ static int mdss_mdp_rotator_finish(struct mdss_mdp_rotator_session *rot)
 	rot->commit_work = commit_work;
 
 	if (rot_pipe) {
-		struct mdss_mdp_mixer *mixer = rot_pipe->mixer_left;
+		struct mdss_mdp_mixer *mixer = rot_pipe->mixer;
 		mdss_mdp_pipe_destroy(rot_pipe);
 		tmp = mdss_mdp_ctl_mixer_switch(mixer->ctl,
 				MDSS_MDP_WB_CTL_TYPE_BLOCK);

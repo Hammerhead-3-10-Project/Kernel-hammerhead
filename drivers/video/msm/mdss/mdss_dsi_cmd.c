@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -21,7 +21,7 @@
 #include <linux/iopoll.h>
 #include <linux/kthread.h>
 
-#include <linux/msm_iommu_domains.h>
+#include <mach/iommu_domains.h>
 
 #include "mdss_dsi_cmd.h"
 #include "mdss_dsi.h"
@@ -59,7 +59,7 @@ char *mdss_dsi_buf_init(struct dsi_buf *dp)
 	int off;
 
 	dp->data = dp->start;
-	off = (int) (unsigned long) dp->data;
+	off = (int)dp->data;
 	/* 8 byte align */
 	off &= 0x07;
 	if (off)
@@ -81,7 +81,7 @@ int mdss_dsi_buf_alloc(struct dsi_buf *dp, int size)
 	dp->end = dp->start + size;
 	dp->size = size;
 
-	if ((int) (unsigned long) dp->start & 0x07)
+	if ((int)dp->start & 0x07)
 		pr_err("%s: buf NOT 8 bytes aligned\n", __func__);
 
 	dp->data = dp->start;

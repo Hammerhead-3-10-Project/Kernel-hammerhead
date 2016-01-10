@@ -21,7 +21,7 @@
 #include <linux/iommu.h>
 
 #include <mach/iommu.h>
-#include <linux/msm_iommu_domains.h>
+#include <mach/iommu_domains.h>
 
 #include "mdss_mdp.h"
 #include "mdss_fb.h"
@@ -106,23 +106,16 @@ struct mdss_mdp_data *mdss_mdp_wb_debug_buffer(struct msm_fb_data_type *mfd)
 			rc = ion_map_iommu(iclient, ihdl,
 					   mdss_get_iommu_domain(domain),
 					   0, SZ_4K, 0,
-					   &img->addr,
+					   (unsigned long *) &img->addr,
 					   (unsigned long *) &img->len,
 					   0, 0);
 		} else {
-			if (MDSS_LPAE_CHECK(mdss_wb_mem)) {
-				pr_err("Can't use phys mem %pa>4Gb w/o IOMMU\n",
-					&mdss_wb_mem);
-				ion_free(iclient, ihdl);
-				return NULL;
-			}
-
 			img->addr = mdss_wb_mem;
 			img->len = img_size;
 		}
 
-		pr_debug("ihdl=%p virt=%p phys=0x%pa iova=0x%pa size=%u\n",
-			 ihdl, videomemory, &mdss_wb_mem, &img->addr, img_size);
+		pr_debug("ihdl=%p virt=%p phys=0x%lx iova=0x%x size=%u\n",
+			 ihdl, videomemory, mdss_wb_mem, img->addr, img_size);
 	}
 	return &mdss_wb_buffer;
 }
@@ -185,6 +178,16 @@ int mdss_mdp_wb_set_secure(struct msm_fb_data_type *mfd, int enable)
 		return -ENODEV;
 	}
 
+	if (!ctl || !ctl->mdata) {
+		pr_err("%s : ctl is NULL", __func__);
+		return -EINVAL;
+	}
+
+	if (!wb) {
+		pr_err("unable to start, writeback is not initialized\n");
+		return -ENODEV;
+	}
+
 	ctl->is_secure = enable;
 	wb->is_secure = enable;
 
@@ -197,7 +200,7 @@ int mdss_mdp_wb_set_secure(struct msm_fb_data_type *mfd, int enable)
 	if (!enable) {
 		if (pipe) {
 			/* unset pipe */
-			mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_left);
+			mdss_mdp_mixer_pipe_unstage(pipe);
 			mdss_mdp_pipe_destroy(pipe);
 			wb->secure_pipe = NULL;
 		}
@@ -211,11 +214,10 @@ int mdss_mdp_wb_set_secure(struct msm_fb_data_type *mfd, int enable)
 	}
 
 	if (!pipe) {
-		pipe = mdss_mdp_pipe_alloc(mixer, MDSS_MDP_PIPE_TYPE_RGB,
-			NULL);
+		pipe = mdss_mdp_pipe_alloc(mixer, MDSS_MDP_PIPE_TYPE_RGB);
 		if (!pipe)
 			pipe = mdss_mdp_pipe_alloc(mixer,
-				MDSS_MDP_PIPE_TYPE_VIG, NULL);
+					MDSS_MDP_PIPE_TYPE_VIG);
 		if (!pipe) {
 			pr_err("Unable to get pipe to set secure session\n");
 			return -ENOMEM;
@@ -373,8 +375,8 @@ static struct mdss_mdp_wb_data *get_local_node(struct mdss_mdp_wb *wb,
 	if (!list_empty(&wb->register_queue)) {
 		list_for_each_entry(node, &wb->register_queue, registered_entry)
 		if (node->buf_info.iova == data->iova) {
-			pr_debug("found node iova=%pa addr=%pa\n",
-				 &data->iova, &node->buf_data.p[0].addr);
+			pr_debug("found node iova=%x addr=%x\n",
+				 data->iova, node->buf_data.p[0].addr);
 			return node;
 		}
 	}
@@ -399,8 +401,7 @@ static struct mdss_mdp_wb_data *get_local_node(struct mdss_mdp_wb *wb,
 		return NULL;
 	}
 
-	pr_debug("register node iova=0x%pa addr=0x%pa\n", &data->iova,
-								&buf->addr);
+	pr_debug("register node iova=0x%x addr=0x%x\n", data->iova, buf->addr);
 
 	return node;
 }
@@ -435,10 +436,10 @@ static struct mdss_mdp_wb_data *get_user_node(struct msm_fb_data_type *mfd,
 		list_for_each_entry(node, &wb->register_queue, registered_entry)
 			if ((node->buf_data.p[0].srcp_ihdl == ihdl) &&
 				    (node->buf_info.offset == data->offset)) {
-				pr_debug("found fd=%d hdl=%p off=%x addr=%pa\n",
+				pr_debug("found fd=%d hdl=%p off=%x addr=%x\n",
 						data->memory_id, ihdl,
 						data->offset,
-						&node->buf_data.p[0].addr);
+						node->buf_data.p[0].addr);
 				return node;
 			}
 	}
@@ -484,8 +485,8 @@ static struct mdss_mdp_wb_data *get_user_node(struct msm_fb_data_type *mfd,
 	}
 
 	buf = &node->buf_data.p[0];
-	pr_debug("register node mem_id=%d offset=%u addr=0x%pa len=%lu\n",
-		 data->memory_id, data->offset, &buf->addr, buf->len);
+	pr_debug("register node mem_id=%d offset=%u addr=0x%x len=%lu\n",
+		 data->memory_id, data->offset, buf->addr, buf->len);
 
 	return node;
 fail_freebuf:
@@ -501,12 +502,11 @@ static void mdss_mdp_wb_free_node(struct mdss_mdp_wb_data *node)
 
 	if (node->user_alloc) {
 		buf = &node->buf_data.p[0];
-
-		pr_debug("free user mem_id=%d ihdl=%p, offset=%u addr=0x%pa\n",
+		pr_debug("free user mem_id=%d ihdl=%p, offset=%u addr=0x%x\n",
 				node->buf_info.memory_id,
 				buf->srcp_ihdl,
 				node->buf_info.offset,
-				&buf->addr);
+				buf->addr);
 
 		mdss_mdp_data_free(&node->buf_data);
 		node->user_alloc = false;
@@ -620,7 +620,7 @@ static int mdss_mdp_wb_dequeue(struct msm_fb_data_type *mfd,
 		memcpy(data, &node->buf_info, sizeof(*data));
 
 		buf = &node->buf_data.p[0];
-		pr_debug("found node addr=%pa len=%lu\n", &buf->addr, buf->len);
+		pr_debug("found node addr=%x len=%lu\n", buf->addr, buf->len);
 	} else {
 		pr_debug("node is NULL, wait for next\n");
 		ret = -ENOBUFS;
@@ -636,11 +636,6 @@ int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd)
 	struct mdss_mdp_wb_data *node = NULL;
 	int ret = 0;
 	struct mdss_mdp_writeback_arg wb_args;
-
-	if (!ctl) {
-		pr_err("no ctl attached to fb=%d devicet\n", mfd->index);
-		return -ENODEV;
-	}
 
 	if (!mdss_mdp_ctl_is_power_on(ctl))
 		return 0;
@@ -683,7 +678,6 @@ int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd)
 		pr_err("error on commit ctl=%d\n", ctl->num);
 		goto kickoff_fail;
 	}
-	mdss_mdp_display_wait4comp(ctl);
 
 	if (wb && node) {
 		mutex_lock(&wb->lock);

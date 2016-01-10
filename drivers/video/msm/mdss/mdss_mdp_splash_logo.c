@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -56,7 +56,8 @@ static int mdss_mdp_splash_alloc_memory(struct msm_fb_data_type *mfd,
 
 	rc = ion_map_iommu(mdata->iclient, sinfo->ion_handle,
 			mdss_get_iommu_domain(MDSS_IOMMU_DOMAIN_UNSECURE),
-			0, SZ_4K, 0, &sinfo->iova, &buf_size, 0, 0);
+			0, SZ_4K, 0, (ion_phys_addr_t *)&sinfo->iova,
+				(unsigned long *)&buf_size, 0, 0);
 	if (rc) {
 		pr_err("ion memory map failed\n");
 		goto imap_err;
@@ -213,7 +214,7 @@ int mdss_mdp_splash_cleanup(struct msm_fb_data_type *mfd,
 		 * out on the dsi lanes.
 		 */
 		if (mdp5_data->handoff && ctl && ctl->is_video_mode) {
-			rc = mdss_mdp_display_commit(ctl, NULL, NULL);
+			rc = mdss_mdp_display_commit(ctl, NULL);
 			if (!IS_ERR_VALUE(rc)) {
 				mdss_mdp_display_wait4comp(ctl);
 			} else {
@@ -261,7 +262,7 @@ static struct mdss_mdp_pipe *mdss_mdp_splash_get_pipe(
 	uint32_t image_size = SPLASH_IMAGE_WIDTH * SPLASH_IMAGE_HEIGHT
 						* SPLASH_IMAGE_BPP;
 
-	ret = mdss_mdp_overlay_pipe_setup(mfd, req, &pipe, NULL, true);
+	ret = mdss_mdp_overlay_pipe_setup(mfd, req, &pipe);
 	if (ret)
 		return NULL;
 
@@ -325,19 +326,12 @@ static int mdss_mdp_splash_kickoff(struct msm_fb_data_type *mfd,
 	 * use single pipe for
 	 * 1. split display disabled
 	 * 2. splash image is only on one side of panel
-	 * 3. source split is enabled and splash image is within line
-	 *    buffer boundry
 	 */
 	use_single_pipe =
 		!mfd->split_display ||
 		(mfd->split_display &&
 		((dest_rect->x + dest_rect->w) < mfd->split_fb_left ||
-		dest_rect->x > mfd->split_fb_left)) ||
-		(mdata->has_src_split &&
-		src_rect->w < min_t(u16, mixer->width,
-					mdss_mdp_line_buffer_width()) &&
-		dest_rect->w < min_t(u16, mixer->width,
-					mdss_mdp_line_buffer_width()));
+		dest_rect->x > mfd->split_fb_left));
 
 	req.src.width = src_rect->w;
 	if (use_single_pipe)
@@ -472,7 +466,6 @@ static int mdss_mdp_splash_ctl_cb(struct notifier_block *self,
 
 	if (!sinfo->frame_done_count) {
 		mdss_mdp_splash_unmap_splash_mem(mfd);
-		mdss_mdp_splash_cleanup(mfd, false);
 	/* wait for 2 frame done events before releasing memory */
 	} else if (sinfo->frame_done_count > MAX_FRAME_DONE_COUNT_WAIT &&
 			sinfo->splash_thread) {

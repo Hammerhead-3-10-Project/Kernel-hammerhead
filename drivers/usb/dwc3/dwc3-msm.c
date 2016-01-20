@@ -46,6 +46,7 @@
 #include <linux/clk/msm-clk.h>
 #include <linux/irq.h>
 #include <soc/qcom/scm.h>
+#include <linux/slimport.h>
 
 #include <mach/rpm-regulator.h>
 #include <mach/msm_bus.h>
@@ -1207,6 +1208,14 @@ static void dwc3_chg_detect_work(struct work_struct *w)
 		delay = DWC3_CHG_DCD_POLL_TIME;
 		break;
 	case USB_CHG_STATE_WAIT_FOR_DCD:
+		if (slimport_is_connected()) {
+			dwc3_chg_block_reset(mdwc);
+			mdwc->charger.chg_type = USB_SDP_CHARGER;
+			mdwc->charger.notify_detection_complete(mdwc->otg_xceiv->otg,
+								&mdwc->charger);
+			return;
+		}
+		
 		is_dcd = dwc3_chg_check_dcd(mdwc);
 		tmout = ++mdwc->dcd_retries == DWC3_CHG_DCD_MAX_RETRIES;
 		if (is_dcd || tmout) {

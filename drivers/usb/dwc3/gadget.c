@@ -1012,8 +1012,7 @@ static void dwc3_prepare_trbs(struct dwc3_ep *dep, bool starting)
 	list_for_each_entry_safe(req, n, &dep->request_list, list) {
 		unsigned	length;
 		dma_addr_t	dma;
-		bool		last_req = list_is_last(&req->list,
-							&dep->request_list);
+		bool		last_req = list_empty(&dep->request_list);
 		int		num_trbs_required = 0;
 
 		last_one = false;
@@ -2208,6 +2207,9 @@ static int __dwc3_cleanup_done_trbs(struct dwc3 *dwc, struct dwc3_ep *dep,
 						dep->name);
 				status = -ECONNRESET;
 			}
+
+			if (last_one)
+				break;
 		} else {
 			dep->flags &= ~DWC3_EP_MISSED_ISOC;
 		}

@@ -597,11 +597,9 @@ static int gaudio_open_snd_dev(struct gaudio *card)
 	snd = &card->playback;
 	snd->filp = filp_open(fn_play, O_WRONLY, 0);
 	if (IS_ERR(snd->filp)) {
-		int ret = PTR_ERR(snd->filp);
-
 		pr_err("No such PCM playback device: %s\n", fn_play);
 		snd->filp = NULL;
-		return ret;
+		return -EINVAL;
 	}
 	pr_debug("Initialized PCM playback device: %s\n", fn_play);
 
@@ -647,17 +645,17 @@ static int gaudio_close_snd_dev(struct gaudio *gau)
 	/* Close control device */
 	snd = &gau->control;
 	if (snd->filp)
-		filp_close(snd->filp, NULL);
+		filp_close(snd->filp, current->files);
 
 	/* Close PCM playback device and setup substream */
 	snd = &gau->playback;
 	if (snd->filp)
-		filp_close(snd->filp, NULL);
+		filp_close(snd->filp, current->files);
 
 	/* Close PCM capture device and setup substream */
 	snd = &gau->capture;
 	if (snd->filp)
-		filp_close(snd->filp, NULL);
+		filp_close(snd->filp, current->files);
 
 	return 0;
 }

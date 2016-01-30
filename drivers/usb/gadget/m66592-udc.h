@@ -13,7 +13,10 @@
 #ifndef __M66592_UDC_H__
 #define __M66592_UDC_H__
 
+#ifdef CONFIG_HAVE_CLK
 #include <linux/clk.h>
+#endif
+
 #include <linux/usb/m66592.h>
 
 #define M66592_SYSCFG		0x00
@@ -453,7 +456,7 @@ struct m66592_ep {
 	unsigned		use_dma:1;
 	u16			pipenum;
 	u16			type;
-
+	const struct usb_endpoint_descriptor	*desc;
 	/* register address */
 	unsigned long		fifoaddr;
 	unsigned long		fifosel;
@@ -465,7 +468,9 @@ struct m66592_ep {
 struct m66592 {
 	spinlock_t		lock;
 	void __iomem		*reg;
+#ifdef CONFIG_HAVE_CLK
 	struct clk *clk;
+#endif
 	struct m66592_platdata	*pdata;
 	unsigned long		irq_trigger;
 
@@ -492,7 +497,6 @@ struct m66592 {
 	int isochronous;
 	int num_dma;
 };
-#define to_m66592(g)	(container_of((g), struct m66592, gadget))
 
 #define gadget_to_m66592(_gadget) container_of(_gadget, struct m66592, gadget)
 #define m66592_to_gadget(m66592) (&m66592->gadget)

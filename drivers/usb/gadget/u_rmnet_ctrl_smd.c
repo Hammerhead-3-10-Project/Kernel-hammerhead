@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -385,8 +385,7 @@ static void grmnet_ctrl_smd_connect_w(struct work_struct *w)
 		return;
 	}
 
-	ret = smd_named_open_on_edge(c->name, SMD_APPS_MODEM, &c->ch, port,
-							grmnet_ctrl_smd_notify);
+	ret = smd_named_open_on_edge(c->name,SMD_APPS_MODEM, &c->ch, port, grmnet_ctrl_smd_notify);
 	if (ret) {
 		if (ret == -EAGAIN) {
 			/* port not ready  - retry */
@@ -591,11 +590,6 @@ static int grmnet_ctrl_smd_port_alloc(int portno)
 	struct rmnet_ctrl_port	*port;
 	struct smd_ch_info	*c;
 	struct platform_driver	*pdrv;
-
-	if (portno >= MAX_CTRL_PORT) {
-		pr_err("Illegal port number.\n");
-		return -EINVAL;
-	}
 
 	port = kzalloc(sizeof(struct rmnet_ctrl_port), GFP_KERNEL);
 	if (!port)

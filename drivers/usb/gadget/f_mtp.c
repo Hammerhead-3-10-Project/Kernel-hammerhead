@@ -529,7 +529,7 @@ retry_rx_alloc:
 		if (!req) {
 			if (mtp_rx_req_len <= MTP_BULK_BUFFER_SIZE)
 				goto fail;
-			for (--i; i >= 0; i--)
+			for (; i > 0; i--)
 				mtp_request_free(dev->rx_req[i], dev->ep_out);
 			mtp_rx_req_len = MTP_BULK_BUFFER_SIZE;
 			goto retry_rx_alloc;
@@ -558,9 +558,7 @@ static ssize_t mtp_read(struct file *fp, char __user *buf,
 	struct mtp_dev *dev = fp->private_data;
 	struct usb_composite_dev *cdev = dev->cdev;
 	struct usb_request *req;
-	ssize_t r = count;
-	unsigned xfer;
-	int len;
+	int r = count, xfer, len;
 	int ret = 0;
 
 	DBG(cdev, "mtp_read(%d)\n", count);
@@ -639,7 +637,7 @@ done:
 		dev->state = STATE_READY;
 	spin_unlock_irq(&dev->lock);
 
-	DBG(cdev, "mtp_read returning %zd\n", r);
+	DBG(cdev, "mtp_read returning %d\n", r);
 	return r;
 }
 
@@ -649,8 +647,7 @@ static ssize_t mtp_write(struct file *fp, const char __user *buf,
 	struct mtp_dev *dev = fp->private_data;
 	struct usb_composite_dev *cdev = dev->cdev;
 	struct usb_request *req = 0;
-	ssize_t r = count;
-	unsigned xfer;
+	int r = count, xfer;
 	int sendZLP = 0;
 	int ret;
 
@@ -731,7 +728,7 @@ static ssize_t mtp_write(struct file *fp, const char __user *buf,
 		dev->state = STATE_READY;
 	spin_unlock_irq(&dev->lock);
 
-	DBG(cdev, "mtp_write returning %zd\n", r);
+	DBG(cdev, "mtp_write returning %d\n", r);
 	return r;
 }
 
@@ -849,7 +846,7 @@ static void receive_file_work(struct work_struct *data)
 	struct file *filp;
 	loff_t offset;
 	int64_t count;
-	int ret, cur_buf = 0;
+	int ret, len, cur_buf = 0;
 	int r = 0;
 
 	/* read our parameters */
@@ -859,9 +856,6 @@ static void receive_file_work(struct work_struct *data)
 	count = dev->xfer_file_length;
 
 	DBG(cdev, "receive_file_work(%lld)\n", count);
-	if (!IS_ALIGNED(count, dev->ep_out->maxpacket))
-		DBG(cdev, "%s- count(%lld) not multiple of mtu(%d)\n", __func__,
-						count, dev->ep_out->maxpacket);
 
 	while (count > 0 || write_req) {
 		if (count > 0) {
@@ -869,8 +863,15 @@ static void receive_file_work(struct work_struct *data)
 			read_req = dev->rx_req[cur_buf];
 			cur_buf = (cur_buf + 1) % RX_REQ_MAX;
 
-			/* some h/w expects size to be aligned to ep's MTU */
-			read_req->length = mtp_rx_req_len;
+			/* The ALIGN macro may overflow if count is very large, so we only use it
+			 * if count <= mtp_rx_req_len.  This is safe because mtp_rx_req_len
+			 * should already be aligned.
+			 */
+			if (count <= mtp_rx_req_len)
+				len = ALIGN(count, dev->ep_out->maxpacket);
+			else
+				len = mtp_rx_req_len;
+			read_req->length = len;
 
 			dev->rx_done = 0;
 			ret = usb_ep_queue(dev->ep_out, read_req, GFP_KERNEL);
@@ -1352,12 +1353,12 @@ static int mtp_bind_config(struct usb_configuration *c, bool ptp_config)
 	dev->function.name = "mtp";
 	dev->function.strings = mtp_strings;
 	if (ptp_config) {
-		dev->function.fs_descriptors = fs_ptp_descs;
+		dev->function.descriptors = fs_ptp_descs;
 		dev->function.hs_descriptors = hs_ptp_descs;
 		if (gadget_is_superspeed(c->cdev->gadget))
 			dev->function.ss_descriptors = ss_ptp_descs;
 	} else {
-		dev->function.fs_descriptors = fs_mtp_descs;
+		dev->function.descriptors = fs_mtp_descs;
 		dev->function.hs_descriptors = hs_mtp_descs;
 		if (gadget_is_superspeed(c->cdev->gadget))
 			dev->function.ss_descriptors = ss_mtp_descs;

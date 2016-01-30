@@ -6,7 +6,6 @@
  * The TUSB6020, using VLYNQ, has CPPI that looks much like DaVinci.
  */
 
-#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/usb.h>
@@ -105,7 +104,7 @@ static void cppi_reset_tx(struct cppi_tx_stateram __iomem *tx, u32 ptr)
 	musb_writel(&tx->tx_complete, 0, ptr);
 }
 
-static void cppi_pool_init(struct cppi *cppi, struct cppi_channel *c)
+static void __init cppi_pool_init(struct cppi *cppi, struct cppi_channel *c)
 {
 	int	j;
 
@@ -150,7 +149,7 @@ static void cppi_pool_free(struct cppi_channel *c)
 	c->last_processed = NULL;
 }
 
-static int cppi_controller_start(struct dma_controller *c)
+static int __init cppi_controller_start(struct dma_controller *c)
 {
 	struct cppi	*controller;
 	void __iomem	*tibase;
@@ -435,6 +434,7 @@ cppi_rndis_update(struct cppi_channel *c, int is_rx,
 	}
 }
 
+#ifdef CONFIG_USB_MUSB_DEBUG
 static void cppi_dump_rxbd(const char *tag, struct cppi_descriptor *bd)
 {
 	pr_debug("RXBD/%s %08x: "
@@ -443,16 +443,21 @@ static void cppi_dump_rxbd(const char *tag, struct cppi_descriptor *bd)
 			bd->hw_next, bd->hw_bufp, bd->hw_off_len,
 			bd->hw_options);
 }
+#endif
 
 static void cppi_dump_rxq(int level, const char *tag, struct cppi_channel *rx)
 {
+#ifdef CONFIG_USB_MUSB_DEBUG
 	struct cppi_descriptor	*bd;
 
+	if (!_dbg_level(level))
+		return;
 	cppi_dump_rx(level, rx, tag);
 	if (rx->last_processed)
 		cppi_dump_rxbd("last", rx->last_processed);
 	for (bd = rx->head; bd; bd = bd->next)
 		cppi_dump_rxbd("active", bd);
+#endif
 }
 
 
@@ -778,7 +783,6 @@ cppi_next_rx_segment(struct musb *musb, struct cppi_channel *rx, int onepacket)
 	void __iomem		*tibase = musb->ctrl_base;
 	int			is_rndis = 0;
 	struct cppi_rx_stateram	__iomem *rx_ram = rx->state_ram;
-	struct cppi_descriptor	*d;
 
 	if (onepacket) {
 		/* almost every USB driver, host or peripheral side */
@@ -892,8 +896,14 @@ cppi_next_rx_segment(struct musb *musb, struct cppi_channel *rx, int onepacket)
 	bd->hw_options |= CPPI_SOP_SET;
 	tail->hw_options |= CPPI_EOP_SET;
 
-	for (d = rx->head; d; d = d->next)
-		cppi_dump_rxbd("S", d);
+#ifdef CONFIG_USB_MUSB_DEBUG
+	if (_dbg_level(5)) {
+		struct cppi_descriptor	*d;
+
+		for (d = rx->head; d; d = d->next)
+			cppi_dump_rxbd("S", d);
+	}
+#endif
 
 	/* in case the preceding transfer left some state... */
 	tail = rx->last_processed;
@@ -1303,10 +1313,10 @@ irqreturn_t cppi_interrupt(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
-EXPORT_SYMBOL_GPL(cppi_interrupt);
 
 /* Instantiate a software object representing a DMA controller. */
-struct dma_controller *dma_controller_create(struct musb *musb, void __iomem *mregs)
+struct dma_controller *__init
+dma_controller_create(struct musb *musb, void __iomem *mregs)
 {
 	struct cppi		*controller;
 	struct device		*dev = musb->controller;

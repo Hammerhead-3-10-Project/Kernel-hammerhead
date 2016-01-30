@@ -62,14 +62,14 @@ struct renesas_usbhs_platform_callback {
 	 * Hardware exit function for platform.
 	 * it is called when driver was removed
 	 */
-	int (*hardware_exit)(struct platform_device *pdev);
+	void (*hardware_exit)(struct platform_device *pdev);
 
 	/*
 	 * option:
 	 *
 	 * for board specific clock control
 	 */
-	int (*power_ctrl)(struct platform_device *pdev,
+	void (*power_ctrl)(struct platform_device *pdev,
 			   void __iomem *base, int enable);
 
 	/*
@@ -77,7 +77,7 @@ struct renesas_usbhs_platform_callback {
 	 *
 	 * Phy reset for platform
 	 */
-	int (*phy_reset)(struct platform_device *pdev);
+	void (*phy_reset)(struct platform_device *pdev);
 
 	/*
 	 * get USB ID function
@@ -132,14 +132,6 @@ struct renesas_usbhs_driver_param {
 	 * option:
 	 *
 	 * dma id for dmaengine
-	 * The data transfer direction on D0FIFO/D1FIFO should be
-	 * fixed for keeping consistency.
-	 * So, the platform id settings will be..
-	 *	.d0_tx_id = xx_TX,
-	 *	.d1_rx_id = xx_RX,
-	 * or
-	 *	.d1_tx_id = xx_TX,
-	 *	.d0_rx_id = xx_RX,
 	 */
 	int d0_tx_id;
 	int d0_rx_id;

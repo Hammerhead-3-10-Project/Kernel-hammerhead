@@ -24,8 +24,6 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/poll.h>
-#include <linux/mmu_context.h>
-#include <linux/aio.h>
 
 #include <linux/device.h>
 #include <linux/moduleparam.h>
@@ -78,6 +76,7 @@ MODULE_LICENSE ("GPL");
 /*----------------------------------------------------------------------*/
 
 #define GADGETFS_MAGIC		0xaee71ee7
+#define DMA_ADDR_INVALID	(~(dma_addr_t)0)
 
 /* /dev/gadget/$CHIP represents ep0 and the whole device */
 enum ep0_state {
@@ -515,9 +514,6 @@ static long ep_ioctl(struct file *fd, unsigned code, unsigned long value)
 struct kiocb_priv {
 	struct usb_request	*req;
 	struct ep_data		*epdata;
-	struct kiocb		*iocb;
-	struct mm_struct	*mm;
-	struct work_struct	work;
 	void			*buf;
 	const struct iovec	*iv;
 	unsigned long		nr_segs;
@@ -533,6 +529,7 @@ static int ep_aio_cancel(struct kiocb *iocb, struct io_event *e)
 	local_irq_disable();
 	epdata = priv->epdata;
 	// spin_lock(&epdata->dev->lock);
+	kiocbSetCancelled(iocb);
 	if (likely(epdata && epdata->ep && priv->req))
 		value = usb_ep_dequeue (epdata->ep, priv->req);
 	else
@@ -544,11 +541,14 @@ static int ep_aio_cancel(struct kiocb *iocb, struct io_event *e)
 	return value;
 }
 
-static ssize_t ep_copy_to_user(struct kiocb_priv *priv)
+static ssize_t ep_aio_read_retry(struct kiocb *iocb)
 {
+	struct kiocb_priv	*priv = iocb->private;
 	ssize_t			len, total;
 	void			*to_copy;
 	int			i;
+
+	/* we "retry" to get the right mm context for this: */
 
 	/* copy stuff into user buffers */
 	total = priv->actual;
@@ -569,26 +569,9 @@ static ssize_t ep_copy_to_user(struct kiocb_priv *priv)
 		if (total == 0)
 			break;
 	}
-
-	return len;
-}
-
-static void ep_user_copy_worker(struct work_struct *work)
-{
-	struct kiocb_priv *priv = container_of(work, struct kiocb_priv, work);
-	struct mm_struct *mm = priv->mm;
-	struct kiocb *iocb = priv->iocb;
-	size_t ret;
-
-	use_mm(mm);
-	ret = ep_copy_to_user(priv);
-	unuse_mm(mm);
-
-	/* completing the iocb can drop the ctx and mm, don't touch mm after */
-	aio_complete(iocb, ret, ret);
-
 	kfree(priv->buf);
 	kfree(priv);
+	return len;
 }
 
 static void ep_aio_complete(struct usb_ep *ep, struct usb_request *req)
@@ -614,14 +597,14 @@ static void ep_aio_complete(struct usb_ep *ep, struct usb_request *req)
 		aio_complete(iocb, req->actual ? req->actual : req->status,
 				req->status);
 	} else {
-		/* ep_copy_to_user() won't report both; we hide some faults */
+		/* retry() won't report both; so we hide some faults */
 		if (unlikely(0 != req->status))
 			DBG(epdata->dev, "%s fault %d len %d\n",
 				ep->name, req->status, req->actual);
 
 		priv->buf = req->buf;
 		priv->actual = req->actual;
-		schedule_work(&priv->work);
+		kick_iocb(iocb);
 	}
 	spin_unlock(&epdata->dev->lock);
 
@@ -651,10 +634,8 @@ fail:
 		return value;
 	}
 	iocb->private = priv;
-	priv->iocb = iocb;
 	priv->iv = iv;
 	priv->nr_segs = nr_segs;
-	INIT_WORK(&priv->work, ep_user_copy_worker);
 
 	value = get_ready_ep(iocb->ki_filp->f_flags, epdata);
 	if (unlikely(value < 0)) {
@@ -662,11 +643,10 @@ fail:
 		goto fail;
 	}
 
-	kiocb_set_cancel_fn(iocb, ep_aio_cancel);
+	iocb->ki_cancel = ep_aio_cancel;
 	get_ep(epdata);
 	priv->epdata = epdata;
 	priv->actual = 0;
-	priv->mm = current->mm; /* mm teardown waits for iocbs in exit_aio() */
 
 	/* each kiocb is coupled to one usb_request, but we can't
 	 * allocate or submit those if the host disconnected.
@@ -695,7 +675,7 @@ fail:
 		kfree(priv);
 		put_ep(epdata);
 	} else
-		value = -EIOCBQUEUED;
+		value = (iv ? -EIOCBRETRY : -EIOCBQUEUED);
 	return value;
 }
 
@@ -713,6 +693,7 @@ ep_aio_read(struct kiocb *iocb, const struct iovec *iov,
 	if (unlikely(!buf))
 		return -ENOMEM;
 
+	iocb->ki_retry = ep_aio_read_retry;
 	return ep_aio_rwtail(iocb, buf, iocb->ki_left, epdata, iov, nr_segs);
 }
 
@@ -907,6 +888,7 @@ ep_open (struct inode *inode, struct file *fd)
 
 /* used before endpoint configuration */
 static const struct file_operations ep_config_operations = {
+	.owner =	THIS_MODULE,
 	.llseek =	no_llseek,
 
 	.open =		ep_open,
@@ -936,6 +918,7 @@ static void clean_req (struct usb_ep *ep, struct usb_request *req)
 	if (req->buf != dev->rbuf) {
 		kfree(req->buf);
 		req->buf = dev->rbuf;
+		req->dma = DMA_ADDR_INVALID;
 	}
 	req->complete = epio_complete;
 	dev->setup_out_ready = 0;
@@ -1425,6 +1408,7 @@ gadgetfs_setup (struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		dev->setup_abort = 1;
 
 	req->buf = dev->rbuf;
+	req->dma = DMA_ADDR_INVALID;
 	req->context = NULL;
 	value = -EOPNOTSUPP;
 	switch (ctrl->bRequest) {
@@ -1509,7 +1493,7 @@ gadgetfs_setup (struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		}
 		break;
 
-#ifndef	CONFIG_USB_PXA25X
+#ifndef	CONFIG_USB_GADGET_PXA25X
 	/* PXA automagically handles this request too */
 	case USB_REQ_GET_CONFIGURATION:
 		if (ctrl->bRequestType != 0x80)
@@ -1695,8 +1679,8 @@ gadgetfs_unbind (struct usb_gadget *gadget)
 
 static struct dev_data		*the_device;
 
-static int gadgetfs_bind(struct usb_gadget *gadget,
-		struct usb_gadget_driver *driver)
+static int
+gadgetfs_bind (struct usb_gadget *gadget)
 {
 	struct dev_data		*dev = the_device;
 
@@ -1774,7 +1758,6 @@ gadgetfs_suspend (struct usb_gadget *gadget)
 
 static struct usb_gadget_driver gadgetfs_driver = {
 	.function	= (char *) driver_desc,
-	.bind		= gadgetfs_bind,
 	.unbind		= gadgetfs_unbind,
 	.setup		= gadgetfs_setup,
 	.disconnect	= gadgetfs_disconnect,
@@ -1789,8 +1772,7 @@ static struct usb_gadget_driver gadgetfs_driver = {
 
 static void gadgetfs_nop(struct usb_gadget *arg) { }
 
-static int gadgetfs_probe(struct usb_gadget *gadget,
-		struct usb_gadget_driver *driver)
+static int gadgetfs_probe (struct usb_gadget *gadget)
 {
 	CHIP = gadget->name;
 	return -EISNAM;
@@ -1798,7 +1780,6 @@ static int gadgetfs_probe(struct usb_gadget *gadget,
 
 static struct usb_gadget_driver probe_driver = {
 	.max_speed	= USB_SPEED_HIGH,
-	.bind		= gadgetfs_probe,
 	.unbind		= gadgetfs_nop,
 	.setup		= (void *)gadgetfs_nop,
 	.disconnect	= gadgetfs_nop,
@@ -1912,8 +1893,7 @@ dev_config (struct file *fd, const char __user *buf, size_t len, loff_t *ptr)
 		gadgetfs_driver.max_speed = USB_SPEED_HIGH;
 	else
 		gadgetfs_driver.max_speed = USB_SPEED_FULL;
-
-	value = usb_gadget_probe_driver(&gadgetfs_driver);
+	value = usb_gadget_probe_driver(&gadgetfs_driver, gadgetfs_bind);
 	if (value != 0) {
 		kfree (dev->buf);
 		dev->buf = NULL;
@@ -1959,6 +1939,7 @@ dev_open (struct inode *inode, struct file *fd)
 }
 
 static const struct file_operations dev_init_operations = {
+	.owner =	THIS_MODULE,
 	.llseek =	no_llseek,
 
 	.open =		dev_open,
@@ -2000,8 +1981,8 @@ gadgetfs_make_inode (struct super_block *sb,
 	if (inode) {
 		inode->i_ino = get_next_ino();
 		inode->i_mode = mode;
-		inode->i_uid = make_kuid(&init_user_ns, default_uid);
-		inode->i_gid = make_kgid(&init_user_ns, default_gid);
+		inode->i_uid = default_uid;
+		inode->i_gid = default_gid;
 		inode->i_atime = inode->i_mtime = inode->i_ctime
 				= CURRENT_TIME;
 		inode->i_private = data;
@@ -2051,7 +2032,7 @@ gadgetfs_fill_super (struct super_block *sb, void *opts, int silent)
 		return -ESRCH;
 
 	/* fake probe to determine $CHIP */
-	usb_gadget_probe_driver(&probe_driver);
+	(void) usb_gadget_probe_driver(&probe_driver, gadgetfs_probe);
 	if (!CHIP)
 		return -ENODEV;
 
@@ -2123,7 +2104,6 @@ static struct file_system_type gadgetfs_type = {
 	.mount		= gadgetfs_mount,
 	.kill_sb	= gadgetfs_kill_sb,
 };
-MODULE_ALIAS_FS("gadgetfs");
 
 /*----------------------------------------------------------------------*/
 

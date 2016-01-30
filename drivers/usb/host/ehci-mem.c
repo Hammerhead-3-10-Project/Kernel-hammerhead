@@ -64,8 +64,10 @@ static inline void ehci_qtd_free (struct ehci_hcd *ehci, struct ehci_qtd *qtd)
 }
 
 
-static void qh_destroy(struct ehci_hcd *ehci, struct ehci_qh *qh)
+static void qh_destroy(struct ehci_qh *qh)
 {
+	struct ehci_hcd *ehci = qh->ehci;
+
 	/* clean qtds first, and know this is not linked */
 	if (!list_empty (&qh->qtd_list) || qh->qh_next.ptr) {
 		ehci_dbg (ehci, "unused qh not empty!\n");
@@ -90,6 +92,8 @@ static struct ehci_qh *ehci_qh_alloc (struct ehci_hcd *ehci, gfp_t flags)
 	if (!qh->hw)
 		goto fail;
 	memset(qh->hw, 0, sizeof *qh->hw);
+	qh->refcount = 1;
+	qh->ehci = ehci;
 	qh->qh_dma = dma;
 	// INIT_LIST_HEAD (&qh->qh_list);
 	INIT_LIST_HEAD (&qh->qtd_list);
@@ -109,6 +113,20 @@ fail:
 	return NULL;
 }
 
+/* to share a qh (cpu threads, or hc) */
+static inline struct ehci_qh *qh_get (struct ehci_qh *qh)
+{
+	WARN_ON(!qh->refcount);
+	qh->refcount++;
+	return qh;
+}
+
+static inline void qh_put (struct ehci_qh *qh)
+{
+	if (!--qh->refcount)
+		qh_destroy(qh);
+}
+
 /*-------------------------------------------------------------------------*/
 
 /* The queue heads and transfer descriptors are managed from pools tied
@@ -118,12 +136,13 @@ fail:
 
 static void ehci_mem_cleanup (struct ehci_hcd *ehci)
 {
+	free_cached_lists(ehci);
 	if (ehci->async)
-		qh_destroy(ehci, ehci->async);
+		qh_put (ehci->async);
 	ehci->async = NULL;
 
 	if (ehci->dummy)
-		qh_destroy(ehci, ehci->dummy);
+		qh_put(ehci->dummy);
 	ehci->dummy = NULL;
 
 	/* DMA consistent memory and pools */

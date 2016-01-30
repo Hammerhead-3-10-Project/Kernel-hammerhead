@@ -316,23 +316,17 @@ static char *usb_dump_iad_descriptor(char *start, char *end,
  */
 static char *usb_dump_config_descriptor(char *start, char *end,
 				const struct usb_config_descriptor *desc,
-				int active, int speed)
+				int active)
 {
-	int mul;
-
 	if (start > end)
 		return start;
-	if (speed == USB_SPEED_SUPER)
-		mul = 8;
-	else
-		mul = 2;
 	start += sprintf(start, format_config,
 			 /* mark active/actual/current cfg. */
 			 active ? '*' : ' ',
 			 desc->bNumInterfaces,
 			 desc->bConfigurationValue,
 			 desc->bmAttributes,
-			 desc->bMaxPower * mul);
+			 desc->bMaxPower * 2);
 	return start;
 }
 
@@ -348,8 +342,7 @@ static char *usb_dump_config(int speed, char *start, char *end,
 	if (!config)
 		/* getting these some in 2.3.7; none in 2.3.6 */
 		return start + sprintf(start, "(null Cfg. desc.)\n");
-	start = usb_dump_config_descriptor(start, end, &config->desc, active,
-			speed);
+	start = usb_dump_config_descriptor(start, end, &config->desc, active);
 	for (i = 0; i < USB_MAXIADS; i++) {
 		if (config->intf_assoc[i] == NULL)
 			break;
@@ -503,7 +496,6 @@ static ssize_t usb_device_dump(char __user **buffer, size_t *nbytes,
 	char *pages_start, *data_end, *speed;
 	unsigned int length;
 	ssize_t total_written = 0;
-	struct usb_device *childdev = NULL;
 
 	/* don't bother with anything else if we're not writing any data */
 	if (*nbytes <= 0)
@@ -597,15 +589,19 @@ static ssize_t usb_device_dump(char __user **buffer, size_t *nbytes,
 	free_pages((unsigned long)pages_start, 1);
 
 	/* Now look at all of this device's children. */
-	usb_hub_for_each_child(usbdev, chix, childdev) {
-		usb_lock_device(childdev);
-		ret = usb_device_dump(buffer, nbytes, skip_bytes,
-				      file_offset, childdev, bus,
-				      level + 1, chix - 1, ++cnt);
-		usb_unlock_device(childdev);
-		if (ret == -EFAULT)
-			return total_written;
-		total_written += ret;
+	for (chix = 0; chix < usbdev->maxchild; chix++) {
+		struct usb_device *childdev = usbdev->children[chix];
+
+		if (childdev) {
+			usb_lock_device(childdev);
+			ret = usb_device_dump(buffer, nbytes, skip_bytes,
+					      file_offset, childdev, bus,
+					      level + 1, chix, ++cnt);
+			usb_unlock_device(childdev);
+			if (ret == -EFAULT)
+				return total_written;
+			total_written += ret;
+		}
 	}
 	return total_written;
 }
@@ -628,7 +624,7 @@ static ssize_t usb_device_read(struct file *file, char __user *buf,
 	/* print devices for all busses */
 	list_for_each_entry(bus, &usb_bus_list, bus_list) {
 		/* recurse through all children of the root hub */
-		if (!bus_to_hcd(bus)->rh_registered)
+		if (!bus->root_hub)
 			continue;
 		usb_lock_device(bus->root_hub);
 		ret = usb_device_dump(&buf, &nbytes, &skip_bytes, ppos,
@@ -665,7 +661,7 @@ static loff_t usb_device_lseek(struct file *file, loff_t offset, int orig)
 {
 	loff_t ret;
 
-	mutex_lock(&file_inode(file)->i_mutex);
+	mutex_lock(&file->f_dentry->d_inode->i_mutex);
 
 	switch (orig) {
 	case 0:
@@ -681,7 +677,7 @@ static loff_t usb_device_lseek(struct file *file, loff_t offset, int orig)
 		ret = -EINVAL;
 	}
 
-	mutex_unlock(&file_inode(file)->i_mutex);
+	mutex_unlock(&file->f_dentry->d_inode->i_mutex);
 	return ret;
 }
 

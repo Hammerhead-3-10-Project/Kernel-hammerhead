@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -47,24 +47,33 @@ struct csvt_ctrl_dev {
 };
 
 static const struct usb_device_id id_table[] = {
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x904c, 4)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x9075, 4)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x908A, 4)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x908E, 6)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x909C, 4)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x909D, 4)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x909E, 6)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x909F, 4)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x90A0, 4)},
-	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6 , 0x90A4, 6)},
-
+	{ USB_DEVICE_AND_INTERFACE_INFO(0x05c6 , 0x904c, 0xff, 0xfe, 0xff)},
+	{ USB_DEVICE_AND_INTERFACE_INFO(0x05c6 , 0x9075, 0xff, 0xfe, 0xff)},
 	{}, /* terminating entry */
 };
 MODULE_DEVICE_TABLE(usb, id_table);
 
+static struct usb_driver csvt_driver = {
+	.name			= "qc_csvt",
+	.probe			= usb_serial_probe,
+	.disconnect		= usb_serial_disconnect,
+	.id_table		= id_table,
+	.suspend		= usb_serial_suspend,
+	.resume			= usb_serial_resume,
+	.supports_autosuspend	= true,
+};
+
+#define CSVT_IFC_NUM	4
+
 static int csvt_probe(struct usb_serial *serial, const struct usb_device_id *id)
 {
+	struct usb_host_interface	*intf =
+		serial->interface->cur_altsetting;
+
 	pr_debug("%s:\n", __func__);
+
+	if (intf->desc.bInterfaceNumber != CSVT_IFC_NUM)
+		return -ENODEV;
 
 	usb_enable_autosuspend(serial->dev);
 
@@ -263,7 +272,7 @@ static void csvt_ctrl_set_termios(struct tty_struct *tty,
 	dev_dbg(&port->dev, "%s", __func__);
 
 	/* Doesn't support option setting */
-	tty_termios_copy_hw(&tty->termios, old_termios);
+	tty_termios_copy_hw(tty->termios, old_termios);
 
 	csvt_ctrl_write_cmd(dev, port);
 }
@@ -304,7 +313,7 @@ static void csvt_ctrl_int_cb(struct urb *urb)
 	ctrl = urb->transfer_buffer;
 	data = (unsigned char *)(ctrl + 1);
 
-	usb_serial_debug_data(&port->dev, __func__,
+	usb_serial_debug_data(debug, &port->dev, __func__,
 					urb->actual_length, data);
 
 	switch (ctrl->bNotificationType) {
@@ -403,7 +412,6 @@ static struct usb_serial_driver csvt_device = {
 	.set_termios		= csvt_ctrl_set_termios,
 	.read_int_callback	= csvt_ctrl_int_cb,
 	.attach			= csvt_ctrl_attach,
-	.reset_resume		= usb_serial_generic_resume,
 	.release		= csvt_ctrl_release,
 };
 
@@ -416,10 +424,9 @@ static int __init csvt_init(void)
 {
 	int	retval;
 
-	retval = usb_serial_register_drivers(serial_drivers, "qc_csvt",
-			id_table);
+	retval = usb_serial_register_drivers(&csvt_driver, serial_drivers);
 	if (retval) {
-		pr_err("%s: usb serial register failed\n", __func__);
+		err("%s: usb serial register failed\n", __func__);
 		return retval;
 	}
 
@@ -428,7 +435,7 @@ static int __init csvt_init(void)
 
 static void __exit csvt_exit(void)
 {
-	usb_serial_deregister_drivers(serial_drivers);
+	usb_serial_deregister_drivers(&csvt_driver, serial_drivers);
 }
 
 module_init(csvt_init);

@@ -200,8 +200,7 @@ reset:
 			return -EAGAIN;
 
 	/* should be IMGSIZE == 65040 */
-	dev_dbg(&dev->interface->dev, "read %d bytes fingerprint data\n",
-		bytes_read);
+	dbg("read %d bytes fingerprint data", bytes_read);
 	return result;
 }
 
@@ -367,14 +366,14 @@ static int idmouse_probe(struct usb_interface *interface,
 			kmalloc(IMGSIZE + dev->bulk_in_size, GFP_KERNEL);
 
 		if (!dev->bulk_in_buffer) {
-			dev_err(&interface->dev, "Unable to allocate input buffer.\n");
+			err("Unable to allocate input buffer.");
 			idmouse_delete(dev);
 			return -ENOMEM;
 		}
 	}
 
 	if (!(dev->bulk_in_endpointAddr)) {
-		dev_err(&interface->dev, "Unable to find bulk-in endpoint.\n");
+		err("Unable to find bulk-in endpoint.");
 		idmouse_delete(dev);
 		return -ENODEV;
 	}
@@ -386,7 +385,7 @@ static int idmouse_probe(struct usb_interface *interface,
 	result = usb_register_dev(interface, &idmouse_class);
 	if (result) {
 		/* something prevented us from registering this device */
-		dev_err(&interface->dev, "Unble to allocate minor number.\n");
+		err("Unble to allocate minor number.");
 		usb_set_intfdata(interface, NULL);
 		idmouse_delete(dev);
 		return result;

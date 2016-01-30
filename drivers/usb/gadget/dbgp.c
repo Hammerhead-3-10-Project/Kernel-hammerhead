@@ -13,7 +13,12 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
 
-#include "u_serial.h"
+/* See comments in "zero.c" */
+#include "epautoconf.c"
+
+#ifdef CONFIG_USB_G_DBGP_SERIAL
+#include "u_serial.c"
+#endif
 
 #define DRIVER_VENDOR_ID	0x0525 /* NetChip */
 #define DRIVER_PRODUCT_ID	0xc0de /* undefined */
@@ -231,10 +236,6 @@ static void dbgp_unbind(struct usb_gadget *gadget)
 	gadget->ep0->driver_data = NULL;
 }
 
-#ifdef CONFIG_USB_G_DBGP_SERIAL
-static unsigned char tty_line;
-#endif
-
 static int __init dbgp_configure_endpoints(struct usb_gadget *gadget)
 {
 	int stp;
@@ -272,7 +273,7 @@ static int __init dbgp_configure_endpoints(struct usb_gadget *gadget)
 	dbgp.serial->in->desc = &i_desc;
 	dbgp.serial->out->desc = &o_desc;
 
-	if (gserial_alloc_line(&tty_line)) {
+	if (gserial_setup(gadget, 1) < 0) {
 		stp = 3;
 		goto fail_3;
 	}
@@ -291,8 +292,7 @@ fail_1:
 	return -ENODEV;
 }
 
-static int __init dbgp_bind(struct usb_gadget *gadget,
-		struct usb_gadget_driver *driver)
+static int __init dbgp_bind(struct usb_gadget *gadget)
 {
 	int err, stp;
 
@@ -381,7 +381,7 @@ static int dbgp_setup(struct usb_gadget *gadget,
 #ifdef CONFIG_USB_G_DBGP_PRINTK
 		err = dbgp_enable_ep();
 #else
-		err = gserial_connect(dbgp.serial, tty_line);
+		err = gserial_connect(dbgp.serial, 0);
 #endif
 		if (err < 0)
 			goto fail;
@@ -402,10 +402,9 @@ fail:
 	return err;
 }
 
-static __refdata struct usb_gadget_driver dbgp_driver = {
+static struct usb_gadget_driver dbgp_driver = {
 	.function = "dbgp",
 	.max_speed = USB_SPEED_HIGH,
-	.bind = dbgp_bind,
 	.unbind = dbgp_unbind,
 	.setup = dbgp_setup,
 	.disconnect = dbgp_disconnect,
@@ -417,14 +416,14 @@ static __refdata struct usb_gadget_driver dbgp_driver = {
 
 static int __init dbgp_init(void)
 {
-	return usb_gadget_probe_driver(&dbgp_driver);
+	return usb_gadget_probe_driver(&dbgp_driver, dbgp_bind);
 }
 
 static void __exit dbgp_exit(void)
 {
 	usb_gadget_unregister_driver(&dbgp_driver);
 #ifdef CONFIG_USB_G_DBGP_SERIAL
-	gserial_free_line(tty_line);
+	gserial_cleanup();
 #endif
 }
 

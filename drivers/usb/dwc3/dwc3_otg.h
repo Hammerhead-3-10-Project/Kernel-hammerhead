@@ -50,6 +50,7 @@ struct dwc3_otg {
 	unsigned long inputs;
 	struct power_supply	*psy;
 	struct completion	dwc3_xcvr_vbus_init;
+	int			host_bus_suspend;
 	int			charger_retry_count;
 	int			vbus_retry_count;
 };
@@ -78,7 +79,7 @@ enum dwc3_chg_type {
 
 struct dwc3_charger {
 	enum dwc3_chg_type	chg_type;
-	unsigned		max_power;
+	int			max_power;
 	bool			charging_disabled;
 
 	bool			skip_chg_detect;

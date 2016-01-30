@@ -2,7 +2,9 @@
 # Wireless USB Core configuration
 #
 config USB_WUSB
-	tristate "Enable Wireless USB extensions"
+	tristate "Enable Wireless USB extensions (EXPERIMENTAL)"
+	depends on EXPERIMENTAL
+	depends on USB
 	depends on PCI
 	depends on UWB
         select CRYPTO
@@ -18,6 +20,7 @@ config USB_WUSB
 
 config USB_WUSB_CBAF
 	tristate "Support WUSB Cable Based Association (CBA)"
+	depends on USB
 	help
 	  Some WUSB devices support Cable Based Association. It's used to
 	  enable the secure communication between the host and the

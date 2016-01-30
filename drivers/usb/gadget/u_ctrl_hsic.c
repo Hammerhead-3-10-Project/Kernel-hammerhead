@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -114,11 +114,6 @@ ghsic_send_cpkt_tomodem(u8 portno, void *buf, size_t len)
 		return -ENODEV;
 	}
 
-	if (!len) {
-		pr_debug("%s: dropping 0 len command\n", __func__);
-		return 0;
-	}
-
 	cbuf = kmalloc(len, GFP_ATOMIC);
 	if (!cbuf)
 		return -ENOMEM;
@@ -183,7 +178,7 @@ static void ghsic_ctrl_connect_w(struct work_struct *w)
 	if (!port || !test_bit(CH_READY, &port->bridge_sts))
 		return;
 
-	pr_debug("%s: port:%p port type =%u\n", __func__, port, port->gtype);
+	pr_debug("%s: port:%p\n", __func__, port);
 
 	retval = ctrl_bridge_open(&port->brdg);
 	if (retval) {
@@ -198,10 +193,6 @@ static void ghsic_ctrl_connect_w(struct work_struct *w)
 		return;
 	}
 	set_bit(CH_OPENED, &port->bridge_sts);
-
-	if (port->cbits_tomodem)
-		ctrl_bridge_set_cbits(port->brdg.ch_id, port->cbits_tomodem);
-
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
 	cbits = ctrl_bridge_get_cbits_tohost(port->brdg.ch_id);

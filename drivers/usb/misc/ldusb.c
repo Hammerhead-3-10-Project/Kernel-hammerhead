@@ -334,8 +334,8 @@ static int ld_usb_open(struct inode *inode, struct file *file)
 	interface = usb_find_interface(&ld_usb_driver, subminor);
 
 	if (!interface) {
-		printk(KERN_ERR "%s - error, can't find device for minor %d\n",
-		       __func__, subminor);
+		err("%s - error, can't find device for minor %d\n",
+		     __func__, subminor);
 		return -ENODEV;
 	}
 
@@ -485,7 +485,7 @@ static ssize_t ld_usb_read(struct file *file, char __user *buffer, size_t count,
 	/* verify that the device wasn't unplugged */
 	if (dev->intf == NULL) {
 		retval = -ENODEV;
-		printk(KERN_ERR "ldusb: No device or device unplugged %d\n", retval);
+		err("No device or device unplugged %d\n", retval);
 		goto unlock_exit;
 	}
 
@@ -565,7 +565,7 @@ static ssize_t ld_usb_write(struct file *file, const char __user *buffer,
 	/* verify that the device wasn't unplugged */
 	if (dev->intf == NULL) {
 		retval = -ENODEV;
-		printk(KERN_ERR "ldusb: No device or device unplugged %d\n", retval);
+		err("No device or device unplugged %d\n", retval);
 		goto unlock_exit;
 	}
 
@@ -603,9 +603,7 @@ static ssize_t ld_usb_write(struct file *file, const char __user *buffer,
 					 bytes_to_write,
 					 USB_CTRL_SET_TIMEOUT * HZ);
 		if (retval < 0)
-			dev_err(&dev->intf->dev,
-				"Couldn't submit HID_REQ_SET_REPORT %d\n",
-				retval);
+			err("Couldn't submit HID_REQ_SET_REPORT %d\n", retval);
 		goto unlock_exit;
 	}
 
@@ -626,8 +624,7 @@ static ssize_t ld_usb_write(struct file *file, const char __user *buffer,
 	retval = usb_submit_urb(dev->interrupt_out_urb, GFP_KERNEL);
 	if (retval) {
 		dev->interrupt_out_busy = 0;
-		dev_err(&dev->intf->dev,
-			"Couldn't submit interrupt_out_urb %d\n", retval);
+		err("Couldn't submit interrupt_out_urb %d\n", retval);
 		goto unlock_exit;
 	}
 	retval = bytes_to_write;

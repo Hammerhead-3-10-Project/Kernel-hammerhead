@@ -613,7 +613,16 @@ static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
-
+#ifdef CONFIG_BCM4339
+	/* If host that supports UHS-I sets S18R to 1 in arg of CMD5 to request
+	 * change of signaling level to 1.8V
+	 */
+	if (host->caps &
+			(MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 |
+			 MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_SDR104 |
+			 MMC_CAP_UHS_DDR50))
+		host->ocr |= R4_18V_PRESENT;
+#endif
 try_again:
 	if (!retries) {
 		pr_warning("%s: Skipping voltage switch\n",
@@ -1089,9 +1098,12 @@ static int mmc_sdio_power_restore(struct mmc_host *host)
 	if (mmc_host_uhs(host))
 		/* to query card if 1.8V signalling is supported */
 		host->ocr |= R4_18V_PRESENT;
-
+#ifdef CONFIG_BCM4339
+	ret = mmc_sdio_init_card(host, host->ocr, host->card, 0);
+#else
 	ret = mmc_sdio_init_card(host, host->ocr, host->card,
 				mmc_card_keep_power(host));
+#endif
 	if (!ret && host->sdio_irqs)
 		mmc_signal_sdio_irq(host);
 
@@ -1276,6 +1288,68 @@ err:
 
 int sdio_reset_comm(struct mmc_card *card)
 {
+#if 0 /*def CONFIG_BCM4339*/
+	struct mmc_host *host = card->host;
+	u32 ocr;
+	int err;
+
+	printk("%s():\n", __func__);
+	mmc_claim_host(host);
+
+	mmc_set_timing(host, MMC_TIMING_LEGACY);
+	mmc_set_clock(host, host->f_init);
+
+	sdio_reset(host);
+	mmc_go_idle(host);
+
+	mmc_send_if_cond(host, host->ocr_avail);
+
+	err = mmc_send_io_op_cond(host, 0, &ocr);
+	if (err)
+		goto err;
+
+	if (host->ocr_avail_sdio)
+		host->ocr_avail = host->ocr_avail_sdio;
+
+	host->ocr = mmc_select_voltage(host, ocr & ~0x7F);
+	if (!host->ocr) {
+		err = -EINVAL;
+		printk("%s(): voltage err\n", __func__);
+		goto err;
+	}
+
+	if (mmc_host_uhs(host))
+		/* to query card if 1.8V signalling is supported */
+		host->ocr |= R4_18V_PRESENT;
+
+	err = mmc_sdio_init_card(host, host->ocr, card, 0);
+	if (err)
+		goto err;
+
+	mmc_release_host(host);
+	return 0;
+err:
+	printk("%s: Error resetting SDIO communications (%d)\n",
+		mmc_hostname(host), err);
+	mmc_release_host(host);
+	return err;
+#else
 	return mmc_power_restore_host(card->host);
+#endif
 }
 EXPORT_SYMBOL(sdio_reset_comm);
+
+#ifdef CONFIG_BCM4339
+void sdio_ctrl_power(struct mmc_host *host, bool onoff)
+{
+		mmc_claim_host(host);
+		if (onoff)
+			mmc_power_up(host);
+        else
+			mmc_power_off(host);
+		/* Wait at least 1 ms according to SD spec */
+		mmc_delay(1);
+		mmc_release_host(host);
+}
+EXPORT_SYMBOL(sdio_ctrl_power);
+#endif

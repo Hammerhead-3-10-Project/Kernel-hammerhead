@@ -34,6 +34,7 @@
 #endif
 #include <asm/io.h>
 #include <mach/board_lge.h>
+#include <../../drivers/mmc/host/msm_sdcc.h>
 
 #define WLAN_STATIC_SCAN_BUF0           5
 #define WLAN_STATIC_SCAN_BUF1           6
@@ -163,6 +164,8 @@ err_skb_alloc:
 static unsigned int g_wifi_detect;
 static void *sdc_dev;
 void (*sdc_status_cb)(int card_present, void *dev);
+extern void sdio_ctrl_power(struct mmc_host *card, bool onoff);
+static void *wifi_mmc_host;
 
 #ifdef CONFIG_BCM4335BT
 void __init bcm_bt_devs_init(void);
@@ -179,6 +182,8 @@ int wcf_status_register(void (*cb)(int card_present, void *dev), void *dev)
 
 	sdc_status_cb = cb;
 	sdc_dev = dev;
+
+	wifi_mmc_host = ((struct msmsdcc_host *)dev)->mmc;
 
 	return 0;
 }
@@ -240,6 +245,7 @@ int bcm_wifi_set_power(int enable)
 		pr_info("%s: wifi power successed to pull down\n", __func__);
 	}
 
+	sdio_ctrl_power((struct mmc_host *)wifi_mmc_host, enable);
 	return ret;
 }
 

@@ -1,7 +1,7 @@
 /*
  * Header file of Broadcom Dongle Host Driver (DHD)
  * Prefered Network Offload code and Wi-Fi Location Service(WLS) code.
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,12 +21,13 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_pno.h 419969 2013-08-23 18:54:36Z $
+ * $Id: dhd_pno.h 423669 2013-09-18 13:01:55Z $
  */
 
 #ifndef __DHD_PNO_H__
 #define __DHD_PNO_H__
 
+#if defined(PNO_SUPPORT)
 #define PNO_TLV_PREFIX			'S'
 #define PNO_TLV_VERSION			'1'
 #define PNO_TLV_SUBTYPE_LEGACY_PNO '2'
@@ -62,10 +63,10 @@
 
 #ifdef GSCAN_SUPPORT
 
-#define GSCAN_MAX_CH_BUCKETS         8
+#define GSCAN_MAX_CH_BUCKETS             8
 #define GSCAN_MAX_CHANNELS_IN_BUCKET     32
-#define GSCAN_MAX_AP_CACHE_PER_SCAN      16
-#define GSCAN_MAX_AP_CACHE               160
+#define GSCAN_MAX_AP_CACHE_PER_SCAN      32
+#define GSCAN_MAX_AP_CACHE               320
 #define GSCAN_BG_BAND_MASK             (1 << 0)
 #define GSCAN_A_BAND_MASK              (1 << 1)
 #define GSCAN_DFS_MASK                 (1 << 2)
@@ -194,7 +195,9 @@ typedef enum dhd_pno_mode {
 #endif /* GSCAN_SUPPORT */
 struct dhd_pno_ssid {
 	bool		hidden;
-	uint32		SSID_len;
+	int8		rssi_thresh;
+	uint8		dummy;
+	uint16		SSID_len;
 	uchar		SSID[DOT11_MAX_SSID_LEN];
 	struct list_head list;
 };
@@ -346,6 +349,13 @@ typedef struct gscan_results_cache {
 	wifi_gscan_result_t results[1];
 } gscan_results_cache_t;
 
+typedef struct {
+    int  id;                            /* identifier of this network block, report this in event */
+    char realm[256];                    /* null terminated UTF8 encoded realm, 0 if unspecified */
+    int64_t roamingConsortiumIds[16];   /* roaming consortium ids to match, 0s if unspecified */
+    uint8 plmn[3];                      /* mcc/mnc combination as per rules, 0s if unspecified */
+} wifi_passpoint_network;
+
 typedef struct dhd_pno_gscan_capabilities {
     int max_scan_cache_size;
     int max_scan_buckets;
@@ -389,6 +399,7 @@ struct dhd_pno_gscan_params {
 	struct list_head hotlist_bssid_list;
 	struct list_head significant_bssid_list;
 	struct list_head epno_ssid_list;
+	uint32 scan_id;
 };
 
 typedef struct gscan_scan_params {
@@ -444,7 +455,6 @@ typedef union dhd_pno_params {
 #endif /* GSCAN_SUPPORT */
 } dhd_pno_params_t;
 typedef struct dhd_pno_status_info {
-	uint8 pno_oui[DOT11_OUI_LEN];
 	dhd_pub_t *dhd;
 	struct work_struct work;
 	struct mutex pno_mutex;
@@ -483,7 +493,6 @@ dhd_dev_pno_stop_for_batch(struct net_device *dev);
 extern int
 dhd_dev_pno_set_for_hotlist(struct net_device *dev, wl_pfn_bssid_t *p_pfn_bssid,
 	struct dhd_pno_hotlist_params *hotlist_params);
-extern int dhd_dev_pno_set_mac_oui(struct net_device *dev, uint8 *oui);
 extern bool dhd_dev_is_legacy_pno_enabled(struct net_device *dev);
 #ifdef GSCAN_SUPPORT
 extern int
@@ -508,6 +517,8 @@ extern void dhd_dev_gscan_hotlist_cache_cleanup(struct net_device *dev, hotlist_
 extern int dhd_dev_wait_batch_results_complete(struct net_device *dev);
 extern void * dhd_dev_process_epno_result(struct net_device *dev,
                         const void  *data, uint32 event, int *send_evt_bytes);
+extern void * dhd_dev_process_anqpo_result(struct net_device *dev,
+			const void  *data, uint32 event, int *send_evt_bytes);
 #endif /* GSCAN_SUPPORT */
 /* dhd pno fuctions */
 extern int dhd_pno_stop_for_ssid(dhd_pub_t *dhd);
@@ -554,5 +565,8 @@ extern void dhd_gscan_hotlist_cache_cleanup(dhd_pub_t *dhd, hotlist_type_t type)
 extern int dhd_wait_batch_results_complete(dhd_pub_t *dhd);
 extern void * dhd_pno_process_epno_result(dhd_pub_t *dhd, const void *data,
          uint32 event, int *size);
+extern void * dhd_pno_process_anqpo_result(dhd_pub_t *dhd, const void *data, uint32 event, int *size);
 #endif /* GSCAN_SUPPORT */
+#endif /* PNO_SUPPORT */
+
 #endif /* __DHD_PNO_H__ */

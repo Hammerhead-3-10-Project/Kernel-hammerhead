@@ -789,6 +789,9 @@ static void __subsystem_restart_dev(struct subsys_device *dev)
 int subsystem_restart_dev(struct subsys_device *dev)
 {
 	const char *name;
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	int saved_restart_level = dev->restart_level;
+#endif
 
 	if (!get_device(&dev->dev))
 		return -ENODEV;
@@ -810,7 +813,13 @@ int subsystem_restart_dev(struct subsys_device *dev)
 		pr_err("%s crashed during a system poweroff/shutdown.\n", name);
 		return -EBUSY;
 	}
-
+	
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	if (lge_is_crash_skipped()) {
+		pr_info("Restart requested intentionally\n");
+		dev->restart_level = RESET_SUBSYS_COUPLED;
+	}
+#endif
 	pr_info("Restart sequence requested for %s, restart_level = %s.\n",
 		name, restart_levels[dev->restart_level]);
 
@@ -818,6 +827,12 @@ int subsystem_restart_dev(struct subsys_device *dev)
 
 	case RESET_SUBSYS_COUPLED:
 		__subsystem_restart_dev(dev);
+#ifdef CONFIG_LGE_HANDLE_PANIC
+		if (lge_is_crash_skipped()) {
+			dev->restart_level = saved_restart_level;
+			lge_clear_crash_skipped();
+		}
+#endif		
 		break;
 	case RESET_SOC:
 		panic("subsys-restart: Resetting the SoC - %s crashed.", name);

@@ -32,6 +32,9 @@
 
 #include <soc/qcom/smem.h>
 #include <soc/qcom/smsm.h>
+#ifdef CONFIG_LGE_HANDLE_PANIC
+#include <mach/lge_handle_panic.h>
+#endif
 
 #include "peripheral-loader.h"
 #include "pil-q6v5.h"

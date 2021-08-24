@@ -179,10 +179,8 @@ CONFIG_PROFILING=y
 CONFIG_TRACEPOINTS=y
 CONFIG_OPROFILE=y
 CONFIG_HAVE_OPROFILE=y
-CONFIG_KPROBES=y
 CONFIG_JUMP_LABEL=y
 # CONFIG_HAVE_64BIT_ALIGNED_ACCESS is not set
-CONFIG_KRETPROBES=y
 CONFIG_HAVE_KPROBES=y
 CONFIG_HAVE_KRETPROBES=y
 CONFIG_HAVE_ARCH_TRACEHOOK=y
@@ -213,13 +211,7 @@ CONFIG_OLD_SIGACTION=y
 CONFIG_HAVE_GENERIC_DMA_COHERENT=y
 CONFIG_RT_MUTEXES=y
 CONFIG_BASE_SMALL=0
-CONFIG_MODULES=y
-# CONFIG_MODULE_FORCE_LOAD is not set
-CONFIG_MODULE_UNLOAD=y
-CONFIG_MODULE_FORCE_UNLOAD=y
-# CONFIG_MODVERSIONS is not set
-# CONFIG_MODULE_SRCVERSION_ALL is not set
-# CONFIG_MODULE_SIG is not set
+# CONFIG_MODULES is not set
 CONFIG_STOP_MACHINE=y
 CONFIG_BLOCK=y
 CONFIG_LBDAF=y
@@ -1060,14 +1052,12 @@ CONFIG_RFS_ACCEL=y
 CONFIG_XPS=y
 # CONFIG_NETPRIO_CGROUP is not set
 CONFIG_BQL=y
-# CONFIG_BPF_JIT is not set
 # CONFIG_SOCKEV_NLMCAST is not set
 
 #
 # Network testing
 #
 # CONFIG_NET_PKTGEN is not set
-# CONFIG_NET_TCPPROBE is not set
 # CONFIG_NET_DROP_MONITOR is not set
 # CONFIG_HAMRADIO is not set
 # CONFIG_CAN is not set
@@ -1654,7 +1644,6 @@ CONFIG_I2C_QUP=y
 #
 # Other I2C/SMBus bus drivers
 #
-# CONFIG_I2C_STUB is not set
 # CONFIG_I2C_DEBUG_CORE is not set
 # CONFIG_I2C_DEBUG_ALGO is not set
 # CONFIG_I2C_DEBUG_BUS is not set
@@ -1770,6 +1759,7 @@ CONFIG_GPIO_QPNP_PIN_DEBUG=y
 CONFIG_POWER_SUPPLY=y
 # CONFIG_POWER_SUPPLY_DEBUG is not set
 # CONFIG_PDA_POWER is not set
+# CONFIG_GENERIC_ADC_BATTERY is not set
 # CONFIG_TEST_POWER is not set
 # CONFIG_BATTERY_DS2780 is not set
 # CONFIG_BATTERY_DS2781 is not set
@@ -1839,6 +1829,7 @@ CONFIG_HWMON=y
 # CONFIG_SENSORS_GL520SM is not set
 # CONFIG_SENSORS_GPIO_FAN is not set
 # CONFIG_SENSORS_HIH6130 is not set
+# CONFIG_SENSORS_IIO_HWMON is not set
 # CONFIG_SENSORS_IT87 is not set
 # CONFIG_SENSORS_JC42 is not set
 # CONFIG_SENSORS_LINEAGE is not set
@@ -1920,7 +1911,7 @@ CONFIG_THERMAL_DEFAULT_GOV_STEP_WISE=y
 # CONFIG_THERMAL_GOV_FAIR_SHARE is not set
 CONFIG_THERMAL_GOV_STEP_WISE=y
 # CONFIG_THERMAL_GOV_USER_SPACE is not set
-# CONFIG_CPU_THERMAL is not set
+CONFIG_CPU_THERMAL=y
 # CONFIG_THERMAL_EMULATION is not set
 CONFIG_THERMAL_TSENS8974=y
 CONFIG_THERMAL_MONITOR=y
@@ -2318,7 +2309,7 @@ CONFIG_SND_JACK=y
 # CONFIG_SND_HRTIMER is not set
 CONFIG_SND_DYNAMIC_MINORS=y
 CONFIG_SND_SUPPORT_OLD_API=y
-CONFIG_SND_VERBOSE_PROCFS=y
+# CONFIG_SND_VERBOSE_PROCFS is not set
 # CONFIG_SND_VERBOSE_PRINTK is not set
 # CONFIG_SND_DEBUG is not set
 # CONFIG_SND_RAWMIDI_SEQ is not set
@@ -2327,7 +2318,7 @@ CONFIG_SND_VERBOSE_PROCFS=y
 # CONFIG_SND_SBAWE_SEQ is not set
 # CONFIG_SND_EMU10K1_SEQ is not set
 CONFIG_SND_DRIVERS=y
-CONFIG_SND_DUMMY=y
+# CONFIG_SND_DUMMY is not set
 # CONFIG_SND_ALOOP is not set
 # CONFIG_SND_MTPAV is not set
 # CONFIG_SND_SERIAL_U16550 is not set
@@ -2363,7 +2354,7 @@ CONFIG_SND_SOC_WCD9320=y
 CONFIG_SND_SOC_WCD9XXX=y
 CONFIG_SND_SOC_MSM_STUB=y
 CONFIG_SND_SOC_MSM_HDMI_CODEC_RX=y
-CONFIG_SND_SIMPLE_CARD=y
+# CONFIG_SND_SIMPLE_CARD is not set
 # CONFIG_SOUND_PRIME is not set
 
 #
@@ -2801,16 +2792,111 @@ CONFIG_STAGING=y
 # CONFIG_USBIP_CORE is not set
 # CONFIG_PRISM2_USB is not set
 # CONFIG_ECHO is not set
-# CONFIG_COMEDI is not set
 # CONFIG_ASUS_OLED is not set
-# CONFIG_RTLLIB is not set
 # CONFIG_R8712U is not set
 # CONFIG_RTS5139 is not set
 # CONFIG_TRANZPORT is not set
 # CONFIG_LINE6_USB is not set
-# CONFIG_VT6656 is not set
+
+#
+# IIO staging drivers
+#
+
+#
+# Accelerometers
+#
+# CONFIG_ADIS16201 is not set
+# CONFIG_ADIS16203 is not set
+# CONFIG_ADIS16204 is not set
+# CONFIG_ADIS16209 is not set
+# CONFIG_ADIS16220 is not set
+# CONFIG_ADIS16240 is not set
+# CONFIG_LIS3L02DQ is not set
+# CONFIG_SCA3000 is not set
+
+#
+# Analog to digital converters
+#
+# CONFIG_AD7291 is not set
+# CONFIG_AD7606 is not set
+# CONFIG_AD799X is not set
+# CONFIG_AD7780 is not set
+# CONFIG_AD7816 is not set
+# CONFIG_AD7192 is not set
+# CONFIG_AD7280 is not set
+
+#
+# Analog digital bi-direction converters
+#
+# CONFIG_ADT7316 is not set
+
+#
+# Capacitance to digital converters
+#
+# CONFIG_AD7150 is not set
+# CONFIG_AD7152 is not set
+# CONFIG_AD7746 is not set
+
+#
+# Direct Digital Synthesis
+#
+# CONFIG_AD5930 is not set
+# CONFIG_AD9832 is not set
+# CONFIG_AD9834 is not set
+# CONFIG_AD9850 is not set
+# CONFIG_AD9852 is not set
+# CONFIG_AD9910 is not set
+# CONFIG_AD9951 is not set
+
+#
+# Digital gyroscope sensors
+#
+# CONFIG_ADIS16060 is not set
+# CONFIG_ADIS16130 is not set
+# CONFIG_ADIS16260 is not set
+
+#
+# Network Analyzer, Impedance Converters
+#
+# CONFIG_AD5933 is not set
+
+#
+# Light sensors
+#
+# CONFIG_SENSORS_ISL29018 is not set
+# CONFIG_SENSORS_ISL29028 is not set
+# CONFIG_TSL2583 is not set
+# CONFIG_TSL2x7x is not set
+
+#
+# Magnetometer sensors
+#
+# CONFIG_SENSORS_HMC5843 is not set
+
+#
+# Active energy metering IC
+#
+# CONFIG_ADE7753 is not set
+# CONFIG_ADE7754 is not set
+# CONFIG_ADE7758 is not set
+# CONFIG_ADE7759 is not set
+# CONFIG_ADE7854 is not set
+
+#
+# Resolver to digital converters
+#
+# CONFIG_AD2S90 is not set
+# CONFIG_AD2S1200 is not set
+# CONFIG_AD2S1210 is not set
+
+#
+# Triggers - standalone
+#
+# CONFIG_IIO_PERIODIC_RTC_TRIGGER is not set
+# CONFIG_IIO_GPIO_TRIGGER is not set
+# CONFIG_IIO_SYSFS_TRIGGER is not set
+# CONFIG_IIO_SIMPLE_DUMMY is not set
 # CONFIG_ZSMALLOC is not set
-# CONFIG_USB_ENESTORAGE is not set
 # CONFIG_BCM_WIMAX is not set
 # CONFIG_FT1000 is not set
 
@@ -2916,7 +3002,102 @@ CONFIG_DEVFREQ_GOV_MSM_CACHE_HWMON=y
 #
 # CONFIG_EXTCON is not set
 # CONFIG_MEMORY is not set
-# CONFIG_IIO is not set
+CONFIG_IIO=y
+CONFIG_IIO_BUFFER=y
+# CONFIG_IIO_BUFFER_CB is not set
+CONFIG_IIO_KFIFO_BUF=y
+CONFIG_IIO_TRIGGER=y
+CONFIG_IIO_CONSUMERS_PER_TRIGGER=2
+
+#
+# Accelerometers
+#
+# CONFIG_KXSD9 is not set
+# CONFIG_IIO_ST_ACCEL_3AXIS is not set
+
+#
+# Analog to digital converters
+#
+# CONFIG_AD7266 is not set
+# CONFIG_AD7298 is not set
+# CONFIG_AD7923 is not set
+# CONFIG_AD7791 is not set
+# CONFIG_AD7793 is not set
+# CONFIG_AD7476 is not set
+# CONFIG_AD7887 is not set
+# CONFIG_EXYNOS_ADC is not set
+# CONFIG_MAX1363 is not set
+# CONFIG_TI_ADC081C is not set
+
+#
+# Amplifiers
+#
+# CONFIG_AD8366 is not set
+
+#
+# Hid Sensor IIO Common
+#
+
+#
+# Digital to analog converters
+#
+# CONFIG_AD5064 is not set
+# CONFIG_AD5360 is not set
+# CONFIG_AD5380 is not set
+# CONFIG_AD5421 is not set
+# CONFIG_AD5624R_SPI is not set
+# CONFIG_AD5446 is not set
+# CONFIG_AD5449 is not set
+# CONFIG_AD5504 is not set
+# CONFIG_AD5755 is not set
+# CONFIG_AD5764 is not set
+# CONFIG_AD5791 is not set
+# CONFIG_AD5686 is not set
+# CONFIG_MAX517 is not set
+# CONFIG_MCP4725 is not set
+
+#
+# Frequency Synthesizers DDS/PLL
+#
+
+#
+# Clock Generator/Distribution
+#
+# CONFIG_AD9523 is not set
+
+#
+# Phase-Locked Loop (PLL) frequency synthesizers
+#
+# CONFIG_ADF4350 is not set
+
+#
+# Digital gyroscope sensors
+#
+# CONFIG_ADIS16080 is not set
+# CONFIG_ADIS16136 is not set
+# CONFIG_ADXRS450 is not set
+# CONFIG_IIO_ST_GYRO_3AXIS is not set
+# CONFIG_ITG3200 is not set
+
+#
+# Inertial measurement units
+#
+# CONFIG_ADIS16400 is not set
+# CONFIG_ADIS16480 is not set
+# CONFIG_INV_MPU6050_IIO is not set
+
+#
+# Light sensors
+#
+# CONFIG_ADJD_S311 is not set
+# CONFIG_SENSORS_TSL2563 is not set
+# CONFIG_VCNL4000 is not set
+
+#
+# Magnetometer sensors
+#
+# CONFIG_AK8975 is not set
+# CONFIG_IIO_ST_MAGN_3AXIS is not set
 CONFIG_PWM=y
 CONFIG_PWM_QPNP=y
 CONFIG_IRQCHIP=y
@@ -2927,7 +3108,8 @@ CONFIG_MSM_IRQ=y
 # CONFIG_MOBICORE_SUPPORT is not set
 # CONFIG_RESET_CONTROLLER is not set
 # CONFIG_CORESIGHT is not set
-# CONFIG_BIF is not set
+CONFIG_BIF=y
+CONFIG_BIF_QPNP=y
 # CONFIG_SENSORS is not set
 CONFIG_SENSORS_SSC=y
 
@@ -3183,7 +3365,6 @@ CONFIG_RCU_CPU_STALL_TIMEOUT=21
 CONFIG_RCU_CPU_STALL_VERBOSE=y
 # CONFIG_RCU_CPU_STALL_INFO is not set
 # CONFIG_RCU_TRACE is not set
-# CONFIG_KPROBES_SANITY_TEST is not set
 # CONFIG_BACKTRACE_SELF_TEST is not set
 # CONFIG_DEBUG_BLOCK_EXT_DEVT is not set
 # CONFIG_DEBUG_FORCE_WEAK_PER_CPU is not set
@@ -3222,13 +3403,10 @@ CONFIG_BRANCH_PROFILE_NONE=y
 # CONFIG_PROFILE_ALL_BRANCHES is not set
 # CONFIG_STACK_TRACER is not set
 # CONFIG_BLK_DEV_IO_TRACE is not set
-CONFIG_KPROBE_EVENT=y
-CONFIG_PROBE_EVENTS=y
+# CONFIG_PROBE_EVENTS is not set
 # CONFIG_CPU_FREQ_SWITCH_PROFILER is not set
 # CONFIG_RING_BUFFER_BENCHMARK is not set
 # CONFIG_RING_BUFFER_STARTUP_TEST is not set
-# CONFIG_RBTREE_TEST is not set
-# CONFIG_INTERVAL_TREE_TEST is not set
 CONFIG_DYNAMIC_DEBUG=y
 # CONFIG_DMA_API_DEBUG is not set
 # CONFIG_ATOMIC64_SELFTEST is not set
@@ -3246,9 +3424,7 @@ CONFIG_ARM_UNWIND=y
 # CONFIG_DEBUG_LL is not set
 CONFIG_DEBUG_LL_INCLUDE="mach/debug-macro.S"
 CONFIG_UNCOMPRESS_INCLUDE="mach/uncompress.h"
-# CONFIG_ARM_KPROBES_TEST is not set
 # CONFIG_PID_IN_CONTEXTIDR is not set
-# CONFIG_DEBUG_SET_MODULE_RONX is not set
 
 #
 # Security options
@@ -3305,7 +3481,6 @@ CONFIG_CRYPTO_NULL=y
 CONFIG_CRYPTO_WORKQUEUE=y
 # CONFIG_CRYPTO_CRYPTD is not set
 CONFIG_CRYPTO_AUTHENC=y
-# CONFIG_CRYPTO_TEST is not set
 
 #
 # Authenticated Encryption with Associated Data

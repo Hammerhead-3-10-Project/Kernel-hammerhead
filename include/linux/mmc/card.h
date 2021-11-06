@@ -352,6 +352,7 @@ struct mmc_card {
 #define MMC_QUIRK_SEC_ERASE_TRIM_BROKEN (1<<10)	/* Skip secure for erase/trim */
 						/* byte mode */
 #define MMC_QUIRK_INAND_DATA_TIMEOUT  (1<<11)   /* For incorrect data timeout */
+#define MMC_QUIRK_BLK_NEED_DUMMY_READ  (1<<12)	/* Issue dummy read in some cases */
 /* To avoid eMMC device getting broken permanently due to HPI feature */
 #define MMC_QUIRK_BROKEN_HPI (1 << 12)
  /* Skip data-timeout advertised by card */
@@ -455,6 +456,7 @@ struct mmc_fixup {
 #define CID_MANFID_MICRON	0x13
 #define CID_MANFID_SAMSUNG	0x15
 #define CID_MANFID_HYNIX	0x90
+#define CID_MANFID_SANDISK_SEM	0x45
 
 #define END_FIXUP { 0 }
 
